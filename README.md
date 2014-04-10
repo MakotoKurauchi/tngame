@@ -121,4 +121,5 @@ Basic でゲームを作るための Arduino 用ライブラリです。
 
 TNGame Libraryで動くゲーム
 -----------------------
-[8x8ドット　ミサイルゲーム](https://github.com/MakotoKurauchi/dotgame_missile/)
+* [8x8ドット　ミサイルゲーム](https://github.com/MakotoKurauchi/dotgames/blob/master/missile.bas)
+* [8x8ドット　テトリス](https://github.com/MakotoKurauchi/dotgames/blob/master/tetris.bas)
