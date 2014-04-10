@@ -38,7 +38,7 @@ short icalc(void);
 short iexp(void);
 void iprint(void);
 void iinput(void);
-char iif(void);
+short iif(void);
 void ivar(void);
 void iarray(void);
 void ilet(void);

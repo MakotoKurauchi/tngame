@@ -1055,10 +1055,10 @@ void iinput(){
   }
 }
 
-char iif(){
-  char i;
+short iif(){
+  short i;
 
-  i = (char)iexp();
+  i = iexp();
   
   if(err) return -1;
 
@@ -1170,7 +1170,7 @@ void inew(void){
 
 unsigned char* iexe(){
   short lineno;
-  unsigned char cd;
+  short cd;
   unsigned char* lp;
   short vto, vstep;
   short index;
