@@ -14,6 +14,7 @@
 //Prototypes
 void newline(void);
 char* c_strchr(char *, char);
+short c_isspace_f(char c);
 void c_puts(const char *);
 short c_gets(void);
 void gpush(unsigned char*);

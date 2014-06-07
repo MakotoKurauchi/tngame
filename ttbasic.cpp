@@ -158,6 +158,10 @@ char* c_strchr(char *s, char c){
   return NULL;
 }
 
+short c_isspace_f(char c){
+return (c <= ' ' &&(c == ' ' || (c <= 13 && c >= 9))) ? 1 : 0 ;
+}
+
 void c_puts(const char *s) {
   while(*s) c_putch(*s++);
 }
@@ -171,7 +175,7 @@ short c_gets(){
     lbuf[cGetsLen] = 0; // Put NULL
     
     if(cGetsLen > 0){
-      while(c_isspace(lbuf[--cGetsLen])); // Skip space
+      while(c_isspace_f(lbuf[--cGetsLen])); // Skip space
       lbuf[++cGetsLen] = 0; // Put NULL
     }
     cGetsLen = 0;
