@@ -5,6 +5,8 @@
 */
 
 #include "tngame.h"
+#include <SD.h>
+#include <SPI.h>
 
 TNGame game ;
 
@@ -37,21 +39,22 @@ void test(unsigned char *buf){
 
 void display(unsigned long t){
   int i;
-   
-  counter ++;
-   
-  for(i=0;i<8;i++){
-    digitalWrite(COL[i],HIGH);
+
+  if( game.iomode() == IO_SERIAL ){
+    counter ++;
+
+    for(i=0;i<8;i++){
+      digitalWrite(COL[i],HIGH);
+    }
+
+    digitalWrite(SRCS,LOW);
+    SPI.transfer(1<<(counter%8));
+    digitalWrite(SRCS,HIGH);
+
+    for(i=0;i<8;i++){
+      digitalWrite(COL[i],!vbuf[i+(counter%8)*8]);
+    }
   }
-  
-  digitalWrite(SRCS,LOW);
-  shiftOut(MOSI, SCK, MSBFIRST, 1<<(counter%8));
-  digitalWrite(SRCS,HIGH);
-   
-  for(i=0;i<8;i++){
-    digitalWrite(COL[i],!vbuf[i+(counter%8)*8]);
-  }
-  
 }
 
 
@@ -65,29 +68,37 @@ void setup(void){
   for(i=0;i<sizeof(COL)/sizeof(COL[0]);i++){
     pinMode(COL[i],OUTPUT);
   }
-  
+  SPI.begin();
+  SPI.setBitOrder(MSBFIRST);
+
   pinMode(LED,OUTPUT);
   pinMode(SDCS,OUTPUT);
   pinMode(SRCS,OUTPUT);
-  pinMode(MOSI,OUTPUT);
-  pinMode(SCK,OUTPUT);
-   
+  
   Serial.begin(9600);
   
   // TNGAMEライブラリを初期化
-  if ( !game.init(8,8,30) ) { // 画像サイズX、画像サイズY、フレームレート
+  if ( !game.init(8,8,30,SDCS) ) { // 画像サイズX、画像サイズY、フレームレート、SDカードのCSピン番号
     Serial.println("Initialize error.");
     while(1);
   }
   game.set_vfunc(test); // 画面データを受け取る関数を登録
   game.set_inkey(BTN_UP,BTN_DOWN,BTN_LEFT,BTN_RIGHT,BTN_A,BTN_B); // 入力ボタンを登録
-  
+
+  // 表示用割り込み関数登録
   attachIntervalTimerHandler(display);
+  
+  // 電源ランプ点灯
   digitalWrite(LED, HIGH); 
+  
+  // Basicコマンド
+  game.command("load 0");
+  game.command("run");
 }
 
 
 void loop(void){
+  // 入力受付
    game.run();
 }
 

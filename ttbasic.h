@@ -9,7 +9,8 @@
  GNU General Public License
 */
 
-#include <Arduino.h>
+#define IO_SERIAL 0
+#define IO_SD 1
 
 //Prototypes
 void newline(void);
@@ -50,7 +51,8 @@ void irun(void);
 void icom(void);
 
 void tb_basic(void);
-int tb_init(int, int, int);
+int tb_init(int, int, int, int);
+int tb_command(char*);
 void ipset(short);
 short getinkey(void);
 short gspoit(void);
@@ -71,3 +73,8 @@ short ibxor(void);
 short ibor(void);
 short iand(void);
 short ior(void);
+void isave(void);
+void iload(void);
+
+void c_putch( char ) ;
+char c_getch( void ) ;

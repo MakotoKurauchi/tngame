@@ -9,7 +9,7 @@ Basic でゲームを作るための Arduino 用ライブラリです。
     #include "tngame.h"
     TNGame game ;
     void setup(void){
-       game.init(8,8,30) ; // 画像サイズX、画像サイズY、フレームレート
+       game.init(8,8,30,2) ; // 画像サイズX、画像サイズY、フレームレート、SDカードのCSピン番号
        game.set_vfunc(test); // 画面データを受け取る関数を登録
        game.set_inkey(BTN_UP,BTN_DOWN,BTN_LEFT,BTN_RIGHT,BTN_A,BTN_B); // 入力ボタンを登録
     }
@@ -20,8 +20,15 @@ Basic でゲームを作るための Arduino 用ライブラリです。
 プログラム方法
 ----
 シリアル接続するとコマンドを打つためのプロンプトが表示されます。
-行番号なしで直接コマンドを実行するダイレクトモードとして動作し、行番頭を付けて入力することでプログラムを作ることができます。
+行番号なしで直接コマンドを実行するダイレクトモードとして動作し、行番号を付けて入力することでプログラムを作ることができます。
 
+自動起動
+----
+起動時にプログラムを自動的に動作させるには、下記のようにすることで、SDカードからプログラムを読み込み実行することが出来ます。
+
+    // Basicコマンド
+    game.command("load 0");
+    game.command("run");
 
 言語仕様
 -------
@@ -70,11 +77,13 @@ Basic でゲームを作るための Arduino 用ライブラリです。
 |VSYNC|次のフレームまで待つ|
 |WAIT|次のフレームまで待つ|
 
-###ファイル（未実装）
+###ファイルコマンド
 |表記|機能|
 |:-----------|:------------|
-|SAVE ファイル名|プログラムを保存します|
-|LOAD ファイル名|プログラムを読み込みます|
+|SAVE ファイル番号|プログラムを保存します|
+|LOAD ファイル番号|プログラムを読み込みます|
+ファイル番号は-32767～32767の整数になります。
+SDカードには`ファイル番号.BAS`として保存されます。
 
 ###コマンド
 |表記|機能|
@@ -121,7 +130,5 @@ Basic でゲームを作るための Arduino 用ライブラリです。
 
 TNGame Libraryで動くゲーム
 -----------------------
-[8x8ドット　ミサイルゲーム](https://github.com/MakotoKurauchi/dotgames/blob/master/missile.bas)
-[8x8ドット　テトリス](https://github.com/MakotoKurauchi/dotgames/blob/master/tetris.bas)
-
-
+* [8x8ドット　ミサイルゲーム](https://github.com/MakotoKurauchi/dotgames/blob/master/missile.bas)
+* [8x8ドット　テトリス](https://github.com/MakotoKurauchi/dotgames/blob/master/tetris.bas)

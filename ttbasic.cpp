@@ -9,20 +9,29 @@
  GNU General Public License
 */
 
+#include "tngame.h"
 #include "ttbasic.h"
+#include <SD.h>
 
 // Depending on device functions
 // TO-DO Rewrite these functions to fit your machine
 // And see 'getrnd()'
 
-#define c_putch(c) Serial.write(c)
-#define c_getch( ) Serial.read()
+//#define c_putch(c) Serial.write(c)
+//#define c_getch( ) Serial.read()
 #define c_kbhit( ) Serial.available()
 
 void newline(void){
   c_putch(13); //CR
   c_putch(10); //LF
 }
+
+// SD Card
+
+volatile int IOMode = IO_SERIAL ;
+int Sdcs;
+
+File sdFile ;
 
 // TOYOSHIKI TinyBASIC symbols
 // TO-DO Rewrite defined values to fit your machine as needed
@@ -48,7 +57,7 @@ unsigned char lstki; //FOR stack index
 
 // Keyword table
 const char* kwtbl[] = {
-  "GOTO", "GOSUB", "RETURN",
+  "GOTO", "GOSUB", "RETURN", "SAVE","LOAD",
   "FOR", "TO", "STEP", "NEXT",
   "GPSET","GPRESET", "GCLS","VSYNC", "WAIT",
   "IF", "REM", "STOP",
@@ -67,7 +76,7 @@ const char* kwtbl[] = {
 
 // i-code(Intermediate code) assignment
 enum{
-  I_GOTO, I_GOSUB, I_RETURN,
+  I_GOTO, I_GOSUB, I_RETURN, I_SAVE, I_LOAD,
   I_FOR, I_TO, I_STEP, I_NEXT,
   I_PSET, I_PRESET, I_GCLS, I_VSYNC, I_WAIT, 
   I_IF, I_REM, I_STOP,
@@ -113,7 +122,8 @@ const char* errmsg[] ={
   "Illegal command",
   "Syntax error",
   "Internal error",
-  "Abort by [ESC]"
+  "Abort by [ESC]",
+  "Can't open file"
 };
 
 // Error code assignment
@@ -140,7 +150,8 @@ enum{
   ERR_COM,
   ERR_SYNTAX,
   ERR_SYS,
-  ERR_ESC
+  ERR_ESC,
+  ERR_OPENFILE
 };
 
 // Standard C libraly (about same) functions
@@ -159,7 +170,7 @@ char* c_strchr(char *s, char c){
 }
 
 short c_isspace_f(char c){
-return (c <= ' ' &&(c == ' ' || (c <= 13 && c >= 9))) ? 1 : 0 ;
+  return (c <= ' ' &&(c == ' ' || (c <= 13 && c >= 9))) ? 1 : 0 ;
 }
 
 void c_puts(const char *s) {
@@ -173,7 +184,7 @@ short c_gets(){
   if((c = c_getch()) == 13){
     newline();
     lbuf[cGetsLen] = 0; // Put NULL
-    
+
     if(cGetsLen > 0){
       while(c_isspace_f(lbuf[--cGetsLen])); // Skip space
       lbuf[++cGetsLen] = 0; // Put NULL
@@ -293,7 +304,7 @@ short getnum(){
       c_putch(8);
     } 
     else
-      if(	(len == 0 && (c == '+' || c == '-')) ||
+      if(    (len == 0 && (c == '+' || c == '-')) ||
         (len < 6 && c_isdigit(c))){ // Numeric or sign only
         lbuf[len++] = c;
         c_putch(c);
@@ -584,8 +595,8 @@ void inslist(){
     // existing line is deleted and new line is not inserted in.
 
     // if((getsize() - *lp1) < *cip){
-    //	err = ERR_LBUFOF;
-    //	return;
+    //    err = ERR_LBUFOF;
+    //    return;
     // }
 
     lp2 = lp1 + *lp1;
@@ -1143,9 +1154,9 @@ void ilist(){
     lineno = 0;
   }
 
-  for(	clp = listbuf;
-			*clp && (getvalue(clp) < lineno);
-			clp += *clp);
+  for(    clp = listbuf;
+            *clp && (getvalue(clp) < lineno);
+            clp += *clp);
 
   while(*clp){
     putnum(getvalue(clp), 0);
@@ -1278,7 +1289,7 @@ unsigned char* iexe(){
       var[index] += vstep;
 
       vto = (short)lstk[lstki - 3];
-      if(	((vstep < 0) && (var[index] < vto)) ||
+      if(    ((vstep < 0) && (var[index] < vto)) ||
         ((vstep > 0) && (var[index] > vto))){
         lstki -= 5;
         break;
@@ -1347,6 +1358,8 @@ unsigned char* iexe(){
     case I_LIST:
     case I_NEW:
     case I_RUN:
+    case I_SAVE:
+    case I_LOAD:
       err = ERR_COM;
       return NULL;
     }
@@ -1407,6 +1420,14 @@ void icom(){
     cip++;
     irun();
     break;
+  case I_SAVE:
+    cip++;
+    isave();
+    break;
+  case I_LOAD:
+    cip++;
+    iload();
+    break;
   default:
     iexe();
     break;
@@ -1445,7 +1466,41 @@ unsigned long tMicro;
 void (*vfunc)(unsigned char *) ; // 呼び出し用関数ポインタ
 
 
-int tb_init(int x=8, int y=8, int fps=60){
+int tb_command(char* command){
+  unsigned char len;
+  
+  c_puts(command);
+  newline(); 
+  
+  strcpy(lbuf,command);
+
+  len = toktoi(); // Convert token to i-code
+  if(err){ // Error
+    newline(); 
+    c_puts("YOU TYPE:");
+    c_puts(lbuf);
+    error();
+//    c_putch('>');// Prompt
+    return 0; // Do nothing
+  }
+
+  if(*ibuf == I_NUM){ // Case the top includes line number
+    *ibuf = len; // Change I_NUM to byte length
+    inslist(); // Insert list
+    if(err){
+      error(); // List buffer overflow
+    }
+  } 
+  else {
+    icom(); // Execute direct
+    error(); // Print OK, and Clear error flag
+  }
+  c_putch('>');// Prompt
+  return 1;
+}
+
+int tb_init(int x=8, int y=8, int fps=60, int sdcs=10){
+  Sdcs = sdcs;
   if(x * y > SIZE_VBUF){
     return 0 ; 
   }
@@ -1458,6 +1513,7 @@ int tb_init(int x=8, int y=8, int fps=60){
   error(); // Print OK, and Clear error flag  
 
   c_putch('>');// Prompt
+    
   return 1;
 }
 
@@ -1665,4 +1721,106 @@ void iwait(void){
   break;
   };
 }
+
+
+void isave( void ){
+    short value;
+    char str[10];
+    
+    switch(*cip){
+        case I_SEMI:
+        case I_EOL:
+        break;
+        default:
+        value = iexp();
+        if(err) return;
+        sprintf(str,"%d.bas",value);
+        IOMode = IO_SD ;
+        SD.begin(Sdcs);
+        sdFile = SD.open(str, FILE_WRITE);
+        if (sdFile) {
+            ilist();
+            sdFile.close();
+            IOMode = IO_SERIAL ;
+            Serial.println("done.");
+        } else {
+            IOMode = IO_SERIAL ;
+            err = ERR_OPENFILE;
+            return;
+        }
+    }
+}
+
+void iload( void ){
+    short value;
+    unsigned char len;
+ 	char str[10];
+	 
+    switch(*cip){
+        case I_SEMI:
+        case I_EOL:
+        break;
+        default:
+        value = iexp();
+        if(err) return;
+        sprintf(str,"%d.bas",value);
+        IOMode = IO_SD ;
+        SD.begin(Sdcs);
+        sdFile = SD.open(str, FILE_READ);
+        if (sdFile) {
+            inew();
+            while(sdFile.available()){
+                if( c_gets() ){
+                  len = toktoi(); // Convert token to i-code
+                  if(err){ // Error
+                    sdFile.close();
+                    IOMode = IO_SERIAL ;
+                    return; // Do nothing
+                  }
+                
+                  if(*ibuf == I_NUM){ // Case the top includes line number
+                    *ibuf = len; // Change I_NUM to byte length
+                    inslist(); // Insert list
+                    if(err){
+                      sdFile.close();
+                      IOMode = IO_SERIAL ;
+                      error(); // List buffer overflow
+                    }
+                  }
+                }
+            }
+
+            sdFile.close();
+            IOMode = IO_SERIAL ;
+            Serial.println("done.");
+        } else {
+            IOMode = IO_SERIAL ;
+            err =ERR_OPENFILE;
+            return;
+        }
+    }
+}
+
+void c_putch( char c ) {
+
+    if( IOMode == IO_SERIAL ) {
+        Serial.write(c);
+    } else if ( IOMode == IO_SD ) {
+        sdFile.write(c);
+    }
+
+}
+
+char  c_getch( void ) {
+
+    if( IOMode == IO_SERIAL ) {
+        return Serial.read() ;
+    } else if ( IOMode == IO_SD ) {
+        return (char)sdFile.read();
+    }
+
+}
+
+
+
 
