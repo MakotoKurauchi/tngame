@@ -10,6 +10,8 @@
 
 TNGame game ;
 
+#ifdef BETA
+
 #define BTN_A 15
 #define BTN_B 24
 #define BTN_UP 6
@@ -25,6 +27,27 @@ TNGame game ;
 #define SCK 13
 
 int COL[] = {9,10,16,17,18,19,20,21};
+
+#else
+
+#define BTN_A 2
+#define BTN_B 24
+#define BTN_UP 6
+#define BTN_DOWN 7
+#define BTN_LEFT 5
+#define BTN_RIGHT 22
+
+#define LED 23
+#define SP 3
+#define SDCS 15
+#define SRCS 8
+#define MOSI 11
+#define SCK 13
+
+int COL[] = {21,17,18,16,19,10,9,20};
+
+#endif
+
 int BtnSst[] = {BTN_UP, BTN_DOWN, BTN_LEFT, BTN_RIGHT, BTN_A, BTN_B};
 
 unsigned char vbuf[64];
