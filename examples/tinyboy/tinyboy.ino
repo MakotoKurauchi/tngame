@@ -83,6 +83,7 @@ void display(unsigned long t){
 
 void setup(void){
   int i;
+  char cmd[10];
   
   for(i=0;i<sizeof(BtnSst)/sizeof(BtnSst[0]);i++){
     pinMode(BtnSst[i],INPUT_PULLUP);
@@ -115,8 +116,17 @@ void setup(void){
   digitalWrite(LED, HIGH); 
   
   // Basicコマンド
-  game.command("load 0");
-  game.command("run");
+  game.command("load 0"); // 起動時の読み込みファイル
+  
+  for(i=0;i<sizeof(BtnSst)/sizeof(BtnSst[0]);i++){ // 起動時に押されていたら対応するファイルを読み込む
+    if(! digitalRead(BtnSst[i])){
+		sprintf(cmd,"load %d",i+1)
+		game.command(cmd);
+		break;
+	};
+  }
+
+  game.command("run"); // 実行する
 }
 
 
