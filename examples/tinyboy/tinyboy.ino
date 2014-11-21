@@ -82,7 +82,7 @@ void display(unsigned long t){
 
 
 void setup(void){
-  int i;
+  int i,loaded=0;
   char cmd[10];
   
   for(i=0;i<sizeof(BtnSst)/sizeof(BtnSst[0]);i++){
@@ -116,16 +116,16 @@ void setup(void){
   digitalWrite(LED, HIGH); 
   
   // Basicコマンド
-  game.command("load 0"); // 起動時の読み込みファイル
-  
   for(i=0;i<sizeof(BtnSst)/sizeof(BtnSst[0]);i++){ // 起動時に押されていたら対応するファイルを読み込む
     if(! digitalRead(BtnSst[i])){
-		sprintf(cmd,"load %d",i+1)
-		game.command(cmd);
-		break;
-	};
+      sprintf(cmd,"load %d",i+1);
+      game.command(cmd);
+      loaded = 1;
+      break;
+    }  
   }
-
+  if(!loaded) game.command("load 0"); // デフォルトの読み込みファイル
+  
   game.command("run"); // 実行する
 }
 
