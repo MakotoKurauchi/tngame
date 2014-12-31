@@ -11,6 +11,14 @@
 
 #define IO_SERIAL 0
 #define IO_SD 1
+#define IO_FLASH 2
+
+#define EEPROM_BOOT 0x00
+#define EEPROM_SLEEP 0x01
+#define EEPROM_WCOUNTER 0x08
+#define EEPROM_LENGTH 0x0A
+#define EEPROM_DATA 0x0C
+
 
 //Prototypes
 void newline(void);
@@ -75,6 +83,15 @@ short iand(void);
 short ior(void);
 void isave(void);
 void iload(void);
+void ifsave(void);
+void ifload(void);
+void ifclear(void);
 
 void c_putch( char ) ;
 char c_getch( void ) ;
+
+int eepromReadInt(int);
+void eepromWriteInt(int, int);
+void eep_write(int, unsigned char);
+unsigned char eep_read(int);
+

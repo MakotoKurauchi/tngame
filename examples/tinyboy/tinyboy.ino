@@ -7,6 +7,7 @@
 #include "tngame.h"
 #include <SD.h>
 #include <SPI.h>
+#include <EEPROM.h>
 
 TNGame game ;
 
@@ -54,7 +55,7 @@ unsigned char vbuf[64];
 
 unsigned int counter;
 
-void test(unsigned char *buf){
+void vreg(unsigned char *buf){
   for(int i=0;i<sizeof(vbuf)/sizeof(vbuf[0]);i++){
     vbuf[i] = buf[i];
   }
@@ -85,6 +86,7 @@ void setup(void){
   int i,loaded=0;
   char cmd[10];
   
+  // ピン設定
   for(i=0;i<sizeof(BtnSst)/sizeof(BtnSst[0]);i++){
     pinMode(BtnSst[i],INPUT_PULLUP);
   }
@@ -99,6 +101,7 @@ void setup(void){
   pinMode(SDCS,OUTPUT);
   pinMode(SRCS,OUTPUT);
   
+  // シリアル開始
   Serial.begin(9600);
   
   // TNGAMEライブラリを初期化
@@ -106,7 +109,7 @@ void setup(void){
     Serial.println("Initialize error.");
     while(1);
   }
-  game.set_vfunc(test); // 画面データを受け取る関数を登録
+  game.set_vfunc(vreg); // 画面データを受け取る関数を登録
   game.set_inkey(BTN_UP,BTN_DOWN,BTN_LEFT,BTN_RIGHT,BTN_A,BTN_B); // 入力ボタンを登録
 
   // 表示用割り込み関数登録
@@ -114,18 +117,25 @@ void setup(void){
   
   // 電源ランプ点灯
   digitalWrite(LED, HIGH); 
-  
+
   // Basicコマンド
-  for(i=0;i<sizeof(BtnSst)/sizeof(BtnSst[0]);i++){ // 起動時に押されていたら対応するファイルを読み込む
-    if(! digitalRead(BtnSst[i])){
-      sprintf(cmd,"load %d",i+1);
-      game.command(cmd);
-      loaded = 1;
-      break;
-    }  
+  if(EEPROM.read(EEPROM_BOOT)==1){ // 起動対象（EEPROM　or　SD）
+    if(digitalRead(BTN_A)==0 && digitalRead(BTN_B)==0){ // 起動時にABボタンが押されていたら
+      game.command("fclear"); // フラッシュをクリアする
+    }else{
+      game.command("fload"); // フラッシュからロードする
+    }
+  }else{
+    for(i=0;i<sizeof(BtnSst)/sizeof(BtnSst[0]);i++){ // 起動時に押されているボタンに対応するファイルを読み込む
+      if(! digitalRead(BtnSst[i])){
+        sprintf(cmd,"load %d",i+1);
+        game.command(cmd);
+        loaded = 1;
+        break;
+      }  
+    }
+    if(!loaded) game.command("load 0"); // デフォルトの読み込みファイル
   }
-  if(!loaded) game.command("load 0"); // デフォルトの読み込みファイル
-  
   game.command("run"); // 実行する
 }
 

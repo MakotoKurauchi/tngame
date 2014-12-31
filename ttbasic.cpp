@@ -12,6 +12,7 @@
 #include "tngame.h"
 #include "ttbasic.h"
 #include <SD.h>
+#include <EEPROM.h>
 
 // Depending on device functions
 // TO-DO Rewrite these functions to fit your machine
@@ -30,7 +31,7 @@ void newline(void){
 
 volatile int IOMode = IO_SERIAL ;
 int Sdcs;
-
+int Noint=0;
 File sdFile ;
 
 // TOYOSHIKI TinyBASIC symbols
@@ -57,7 +58,7 @@ unsigned char lstki; //FOR stack index
 
 // Keyword table
 const char* kwtbl[] = {
-  "GOTO", "GOSUB", "RETURN", "SAVE","LOAD",
+  "GOTO", "GOSUB", "RETURN", "SAVE", "LOAD", "FSAVE", "FLOAD", 
   "FOR", "TO", "STEP", "NEXT",
   "GPSET","GPRESET", "GCLS","VSYNC", "WAIT",
   "IF", "REM", "STOP",
@@ -67,7 +68,7 @@ const char* kwtbl[] = {
   "<<",   ">>", "==", "!=", "^", "||", "|", "&&", "&", "%",
   ">=", "#", ">", "=", "<=", "<",
   "@", "RND", "ABS", "SIZE",
-  "LIST", "RUN", "NEW",
+  "LIST", "RUN", "NEW", "FCLEAR",
   "BUTTON", "GSPOIT"
 };
 
@@ -76,7 +77,7 @@ const char* kwtbl[] = {
 
 // i-code(Intermediate code) assignment
 enum{
-  I_GOTO, I_GOSUB, I_RETURN, I_SAVE, I_LOAD,
+  I_GOTO, I_GOSUB, I_RETURN, I_SAVE, I_LOAD, I_FSAVE, I_FLOAD,
   I_FOR, I_TO, I_STEP, I_NEXT,
   I_PSET, I_PRESET, I_GCLS, I_VSYNC, I_WAIT, 
   I_IF, I_REM, I_STOP,
@@ -86,7 +87,7 @@ enum{
   I_LSFT, I_RSFT, I_EQAL, I_NEQAL, I_BXOR, I_OR, I_BOR, I_AND, I_BAND, I_MOD,
   I_GTE, I_SHARP, I_GT, I_EQ, I_LTE, I_LT,
   I_ARRAY, I_RND, I_ABS, I_SIZE,
-  I_LIST, I_RUN, I_NEW,
+  I_LIST, I_RUN, I_NEW, I_FCLEAR,
   I_INKEY, I_GSPOIT,
   I_NUM, I_VAR, I_STR,
   I_EOL
@@ -123,7 +124,8 @@ const char* errmsg[] ={
   "Syntax error",
   "Internal error",
   "Abort by [ESC]",
-  "Can't open file"
+  "Can't open file",
+  "Out of range"
 };
 
 // Error code assignment
@@ -151,7 +153,8 @@ enum{
   ERR_SYNTAX,
   ERR_SYS,
   ERR_ESC,
-  ERR_OPENFILE
+  ERR_OPENFILE,
+  ERR_OUTOFRANGE
 };
 
 // Standard C libraly (about same) functions
@@ -204,7 +207,7 @@ short c_gets(){
     else
       if(c_isprint(c) && (cGetsLen < (SIZE_LINE - 1))){
         lbuf[cGetsLen++] = c;
-        c_putch(c);
+        if ( IOMode != IO_FLASH ) c_putch(c);
     }
 
     return 0 ; 
@@ -1360,6 +1363,9 @@ unsigned char* iexe(){
     case I_RUN:
     case I_SAVE:
     case I_LOAD:
+    case I_FSAVE:
+    case I_FLOAD:
+    case I_FCLEAR:
       err = ERR_COM;
       return NULL;
     }
@@ -1427,6 +1433,27 @@ void icom(){
   case I_LOAD:
     cip++;
     iload();
+    break;
+  case I_FSAVE:
+    cip++;
+    if(*cip == I_EOL)
+      ifsave();
+    else
+      err = ERR_SYNTAX;
+    break;
+  case I_FLOAD:
+    cip++;
+    if(*cip == I_EOL)
+      ifload();
+    else
+      err = ERR_SYNTAX;
+    break;
+  case I_FCLEAR:
+    cip++;
+    if(*cip == I_EOL)
+      ifclear();
+    else
+      err = ERR_SYNTAX;
     break;
   default:
     iexe();
@@ -1520,6 +1547,15 @@ int tb_init(int x=8, int y=8, int fps=60, int sdcs=10){
 void tb_basic(){
   unsigned char len;
   if( c_gets() ){
+/*
+unsigned char *lp;
+lp = listbuf;
+for(int i=0;i<SIZE_LIST;i++){
+Serial.print("lb:");
+Serial.println(*lp,10);
+lp ++;
+}
+*/	
       len = toktoi(); // Convert token to i-code
       if(err){ // Error
         newline(); 
@@ -1724,103 +1760,191 @@ void iwait(void){
 
 
 void isave( void ){
-    short value;
-    char str[10];
-    
-    switch(*cip){
-        case I_SEMI:
-        case I_EOL:
-        break;
-        default:
-        value = iexp();
-        if(err) return;
-        sprintf(str,"%d.bas",value);
-        IOMode = IO_SD ;
-        SD.begin(Sdcs);
-        sdFile = SD.open(str, FILE_WRITE);
-        if (sdFile) {
-            ilist();
-            sdFile.close();
-            IOMode = IO_SERIAL ;
-            Serial.println("done.");
-        } else {
-            IOMode = IO_SERIAL ;
-            err = ERR_OPENFILE;
-            return;
-        }
+  short value;
+  char str[10];
+  
+  switch(*cip){
+    case I_SEMI:
+    case I_EOL:
+    break;
+    default:
+    value = iexp();
+    if(err) return;
+    sprintf(str,"%d.bas",value);
+    IOMode = IO_SD ;
+    SD.begin(Sdcs);
+    sdFile = SD.open(str, FILE_WRITE);
+    if (sdFile) {
+      ilist();
+      sdFile.close();
+      IOMode = IO_SERIAL ;
+      Serial.println("done.");
+    } else {
+      IOMode = IO_SERIAL ;
+      err = ERR_OPENFILE;
+      return;
     }
+  }
 }
 
 void iload( void ){
-    short value;
-    unsigned char len;
- 	char str[10];
-	 
-    switch(*cip){
-        case I_SEMI:
-        case I_EOL:
-        break;
-        default:
-        value = iexp();
-        if(err) return;
-        sprintf(str,"%d.bas",value);
-        IOMode = IO_SD ;
-        SD.begin(Sdcs);
-        sdFile = SD.open(str, FILE_READ);
-        if (sdFile) {
-            inew();
-            while(sdFile.available()){
-                if( c_gets() ){
-                  len = toktoi(); // Convert token to i-code
-                  if(err){ // Error
-                    sdFile.close();
-                    IOMode = IO_SERIAL ;
-                    return; // Do nothing
-                  }
-                
-                  if(*ibuf == I_NUM){ // Case the top includes line number
-                    *ibuf = len; // Change I_NUM to byte length
-                    inslist(); // Insert list
-                    if(err){
-                      sdFile.close();
-                      IOMode = IO_SERIAL ;
-                      error(); // List buffer overflow
-                    }
-                  }
-                }
-            }
-
+  short value;
+  unsigned char len;
+  char str[10]      ;
+     
+  switch(*cip){
+    case I_SEMI:
+    case I_EOL:
+    break;
+    default:
+    value = iexp();
+    if(err) return;
+    sprintf(str,"%d.bas",value);
+    IOMode = IO_SD ;
+    SD.begin(Sdcs);
+    sdFile = SD.open(str, FILE_READ);
+    if (sdFile) {
+      inew();
+      while(sdFile.available()){
+        if( c_gets() ){
+          len = toktoi(); // Convert token to i-code
+          if(err){ // Error
             sdFile.close();
             IOMode = IO_SERIAL ;
-            Serial.println("done.");
-        } else {
-            IOMode = IO_SERIAL ;
-            err =ERR_OPENFILE;
-            return;
+            return; // Do nothing
+          }
+        
+          if(*ibuf == I_NUM){ // Case the top includes line number
+            *ibuf = len; // Change I_NUM to byte length
+            inslist(); // Insert list
+            if(err){
+              sdFile.close();
+              IOMode = IO_SERIAL ;
+              error(); // List buffer overflow
+            }
+          }
         }
+      }
+
+      sdFile.close();
+      IOMode = IO_SERIAL ;
+      Serial.println("done.");
+    } else {
+      IOMode = IO_SERIAL ;
+      err =ERR_OPENFILE;
+      return;
     }
+  }
+}
+
+/* EEPROM Area
+0x0000           Boot flag
+0x0001           Sleep time
+0x0002 - 0x0007  Reserve
+0x0008 - 0x0009  Write counter
+0x000A - 0x000B  Data length
+0x000C -         Data body
+ 
+*/
+
+int eepromReadInt(int address){
+  int value = 0x0000;
+  value = value | (eep_read(address) << 8);
+  value = value | eep_read(address+1);
+  return value;
+}
+ 
+void eepromWriteInt(int address, int value){
+  eep_write(address, (value >> 8) & 0xFF );
+  eep_write(address+1, value & 0xFF);
+}
+
+void ifsave( void ){
+  char str[30];
+  unsigned char *lp;
+  int eepromaddr;
+  int wcounter;
+  
+  eepromaddr = EEPROM_DATA;
+  lp = listbuf;
+  
+  while(*lp){
+    noInterrupts();
+    for(int i=0;i<*lp;i++){
+      EEPROM.write(eepromaddr,*(lp+i));
+      eepromaddr ++;
+    }
+    interrupts();
+    lp += *lp;
+    Serial.print("*");
+  }
+  eep_write(eepromaddr,0);
+
+  eep_write(EEPROM_BOOT,1); // Boot flag
+  eepromWriteInt(EEPROM_LENGTH, listbuf + SIZE_LIST - lp); // Data length
+  Serial.println("");
+  Serial.println("done.");
+}
+
+void ifload( void ){
+  unsigned char *lp;
+  unsigned char c;
+  int eepromaddr;
+
+  eepromaddr = EEPROM_DATA;
+  inew();
+
+  lp = listbuf;
+  
+  noInterrupts();
+  while(*lp = eep_read(eepromaddr)){
+  	for(int i=0;i<*lp;i++){
+      *(lp+i) = eep_read(eepromaddr);
+      eepromaddr ++;
+    }
+    lp += *lp;
+  }
+  interrupts();
+
+  Serial.println("done.");
+}
+
+void ifclear( void ){
+  eep_write(EEPROM_BOOT,0); // Boot flag
+  eepromWriteInt(EEPROM_LENGTH,0); // Data length
+  Serial.println("done.");
 }
 
 void c_putch( char c ) {
 
-    if( IOMode == IO_SERIAL ) {
-        Serial.write(c);
-    } else if ( IOMode == IO_SD ) {
-        sdFile.write(c);
-    }
+  if( IOMode == IO_SERIAL ) {
+    Serial.write(c);
+  } else if ( IOMode == IO_SD ) {
+    sdFile.write(c);
+  }
 
 }
 
 char  c_getch( void ) {
-
-    if( IOMode == IO_SERIAL ) {
-        return Serial.read() ;
-    } else if ( IOMode == IO_SD ) {
-        return (char)sdFile.read();
-    }
-
+  char c;
+  
+  if( IOMode == IO_SERIAL ) {
+    return Serial.read() ;
+  } else if ( IOMode == IO_SD ) {
+    return (char)sdFile.read();
+  }
+  
 }
 
+void eep_write(int addr, unsigned char c){
+  noInterrupts();
+  EEPROM.write(addr,c);
+  interrupts();    
+}
 
-
-
+unsigned char eep_read(int addr){
+  noInterrupts();
+  char c = EEPROM.read(addr);
+  interrupts();   
+  return c;
+}
