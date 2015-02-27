@@ -672,7 +672,7 @@ short getrnd(void){
   value = getparam();
   if(err) return 0;
 
-  return (random(value)) + 1;
+  return (random(value+1)) ;
 }
 
 short getarray()
